@@ -17,15 +17,25 @@ const applicantSchema = new mongoose.Schema({
     required: [true, "Email is required"],
     validate: [validator.isEmail, "Please provide a valid email"],
   },
+  country: {
+    type: String,
+    required: [true, "Country is required"],
+    default: "India" // Defaulting to India as per your context
+  },
   phone: {
     type: String,
     required: [true, "Phone number is required"],
     validate: {
-      validator: function (v) {
-        return /^\d{10}$/.test(v); // Simple validation for 10-digit phone number
+      validator: function(v) {
+        // Allows numbers with optional country code (e.g., +91, +1, etc.)
+        return /^(\+\d{1,3}[- ]?)?\d{10}$/.test(v);
       },
       message: props => `${props.value} is not a valid phone number!`
     },
+  },
+  address: {
+    type: String,
+    required: function() { return this.country !== "India"; }
   },
   age: {
     type: Number,
@@ -50,7 +60,7 @@ const applicantSchema = new mongoose.Schema({
   },
   classStudying: {
     type: String,
-    required: function () { return this.isStudent === "Yes"; },
+    required: function() { return this.isStudent === "Yes"; },
   },
   motherTongue: {
     type: String,
@@ -58,15 +68,21 @@ const applicantSchema = new mongoose.Schema({
   },
   state: {
     type: String,
-    required: [true, "State is required"],
+    required: function() { return this.country === "India"; }
   },
   city: {
     type: String,
-    required: [true, "City is required"],
+    required: function() { return this.country === "India"; }
   },
   whatsappNumber: {
     type: String,
     required: [true, "WhatsApp number is required"],
+    validate: {
+      validator: function(v) {
+        return /^(\+\d{1,3}[- ]?)?\d{10}$/.test(v);
+      },
+      message: props => `${props.value} is not a valid WhatsApp number!`
+    },
   },
   referredBy: {
     type: String,

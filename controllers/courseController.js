@@ -231,21 +231,68 @@ export const verifyApplyCourseData = async (req, res) => {
       age,
       gender,
       isStudent,
+      classStudying,
+      country,
       state,
       city,
+      address,
       whatsappNumber,
       referredBy,
       convenientTimeSlot,
     } = req.body;
 
-    // Basic validation for required fields
+    // Updated validation for country-based requirements
     if (
       !fullName || !email || !phone || !motherTongue || !age || !gender ||
-      !isStudent || !state || !city || !whatsappNumber || !referredBy ||
-      !convenientTimeSlot
+      !isStudent || !whatsappNumber || !referredBy || !convenientTimeSlot
     ) {
-      return res.status(400).json({ success:false,message: "All required fields must be filled." });
+      return res.status(400).json({ success: false, message: "All required fields must be filled." });
     }
+
+    // Country-specific validation
+    if (country === "India") {
+      if (!state || !city) {
+        return res.status(400).json({
+          success: false,
+          message: "State and City are required for Indian applicants."
+        });
+      }
+    } else {
+      if (!address) {
+        return res.status(400).json({
+          success: false,
+          message: "Address is required for international applicants."
+        });
+      }
+    }
+
+    // Additional phone number validation
+    if (country === "India") {
+      // For India, phone should be exactly 10 digits
+      if (!/^\d{10}$/.test(phone) || !/^\d{10}$/.test(whatsappNumber)) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone and WhatsApp numbers must be 10 digits for Indian applicants."
+        });
+      }
+    } else {
+      // For international, phone should be digits only (country code will be added separately)
+      if (!/^\d{6,15}$/.test(phone) || !/^\d{6,15}$/.test(whatsappNumber)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid phone number format for international applicants."
+        });
+      }
+    }
+
+    // If student is "Yes", classStudying is required
+    if (isStudent === "Yes" && !classStudying) {
+      return res.status(400).json({
+        success: false,
+        message: "Class studying information is required when applicant is a student."
+      });
+    }
+
 
     // Validate email format
     if (!validator.isEmail(email)) {
