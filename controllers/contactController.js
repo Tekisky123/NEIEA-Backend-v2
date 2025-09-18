@@ -2,15 +2,21 @@ import Contact from "../models/Contact.js";
 
 export const createContact = async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, state, subject, message } = req.body;
+    const { name, email, affiliation, inquiryType, message } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !inquiryType || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, inquiry type, and message are required fields.",
+      });
+    }
 
     const newContact = new Contact({
-      firstName,
-      lastName,
+      name,
       email,
-      phone,
-      state,
-      subject,
+      affiliation: affiliation || "", // Default to empty string if not provided
+      inquiryType,
       message,
     });
 

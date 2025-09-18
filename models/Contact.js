@@ -3,14 +3,9 @@ import validator from "validator";
 
 const contactSchema = new mongoose.Schema(
   {
-    firstName: {
+    name: {
       type: String,
-      required: [true, "First name is required"],
-      trim: true,
-    },
-    lastName: {
-      type: String,
-      required: [true, "Last name is required"],
+      required: [true, "Name is required"],
       trim: true,
     },
     email: {
@@ -19,24 +14,18 @@ const contactSchema = new mongoose.Schema(
       validate: [validator.isEmail, "Please provide a valid email"],
       trim: true,
     },
-    phone: {
+    affiliation: {
       type: String,
-      required: [true, "Phone number is required"],
-      validate: {
-        validator: function (v) {
-          return /^\+91\d{10}$/.test(v);
-        },
-        message: (props) => `${props.value} is not a valid Indian phone number!`,
+      default: "",
+      trim: true,
+    },
+    inquiryType: {
+      type: String,
+      required: [true, "Inquiry type is required"],
+      enum: {
+        values: ["Press", "Donation", "Partnership", "Membership", "Feedback", "Other"],
+        message: "Please select a valid inquiry type",
       },
-    },
-    state: {
-      type: String,
-      required: [true, "State is required"],
-      trim: true,
-    },
-    subject: {
-      type: String,
-      trim: true,
     },
     message: {
       type: String,
@@ -44,9 +33,8 @@ const contactSchema = new mongoose.Schema(
       trim: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true } // This automatically adds `createdAt` and `updatedAt`
 );
 
 const Contact = mongoose.model("Contact", contactSchema);
-
 export default Contact;
