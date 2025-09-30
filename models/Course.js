@@ -77,7 +77,7 @@ const CourseSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ["english", "math", "science", "social-science", "technical", "financial-literacy", "nios", "cbse", "other"],
+    enum: ["english", "math", "science", "social-science", "teachers-training" ,"technical", "financial-literacy", "nios", "cbse", "other"],
     default:"other"
   },
 });
