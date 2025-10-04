@@ -17,6 +17,7 @@ import BulletPoint from "../models/BulletPoint.js";
 import { CardTestimonial, VideoTestimonial } from "../models/Testimonial.js";
 import Section from "../models/Section.js";
 import ReferredBy from "../models/ReferredBy.js";
+import validator from 'validator';
 
 export const createAdmin = async (req, res) => {
   const { firstName, lastName, email, password, role } = req.body;
@@ -470,7 +471,7 @@ export const getAllDonors = async (req, res) => {
 
 
 //     const responseData = donations.map((donation) => {
-      
+
 
 //       return {
 //         _id: donation._id,
@@ -1062,6 +1063,7 @@ import mongoose from "mongoose";
 import { Parser } from "json2csv";
 import archiver from "archiver";
 import Donation from "../models/Donation.js";
+import Leadership from "../models/Leadership.js";
 
 export const downloadBackup = async (req, res) => {
   try {
@@ -1110,7 +1112,7 @@ export const downloadBackup = async (req, res) => {
 };
 
 export const getHomepageContent = async (req, res) => {
-    
+
 }
 
 // V3 Dynamic Things
@@ -1201,9 +1203,9 @@ export const createVideoTestimonial = async (req, res) => {
       type,
       duration,
       videoUrl,
-      videoType, 
-      videoTag, 
-      rating, 
+      videoType,
+      videoTag,
+      rating,
       display_order: nextOrder
     });
     await testimonial.save();
@@ -1252,12 +1254,338 @@ export const reorderTestimonials = async (req, res) => {
       return res.status(400).json({ error: 'Invalid reorder data' });
     }
     const Model = type === 'cards' ? CardTestimonial : VideoTestimonial;
-    const updatePromises = items.map(item => 
+    const updatePromises = items.map(item =>
       Model.findByIdAndUpdate(item.id, { display_order: item.display_order })
     );
     await Promise.all(updatePromises);
     res.json({ message: 'Testimonials reordered successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to reorder testimonials' });
+  }
+};
+
+// LEADERSHIP
+// Get all leadership members (admin)
+export const getAllLeadership = async (req, res) => {
+  try {
+    const members = await Leadership.find()
+      .sort({ category: 1, display_order: 1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: members,
+      count: members.length
+    });
+  } catch (error) {
+    console.error('Error fetching leadership members:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch leadership members',
+      error: error.message
+    });
+  }
+};
+
+// Get single leadership member (admin)
+export const getLeadershipById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid member ID'
+      });
+    }
+
+    const member = await Leadership.findById(id);
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leadership member not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: member
+    });
+  } catch (error) {
+    console.error('Error fetching leadership member:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch leadership member',
+      error: error.message
+    });
+  }
+};
+
+// Create new leadership member
+export const createLeadership = async (req, res) => {
+  try {
+    const { name, title, description, image, category, fullBio, hasImage } = req.body;
+
+    // Validation using validator module
+    const errors = [];
+
+    if (!name || !validator.isLength(name.trim(), { min: 1, max: 100 })) {
+      errors.push('Name is required and must be between 1-100 characters');
+    }
+
+    if (!title || !validator.isLength(title.trim(), { min: 1, max: 100 })) {
+      errors.push('Title is required and must be between 1-100 characters');
+    }
+
+    if (!description || !validator.isLength(description.trim(), { min: 1, max: 5000 })) {
+      errors.push('Description is required and must be between 1-500 characters');
+    }
+
+    // if (!image || !validator.isURL(image)) { //enable after s3 implemented
+    //   errors.push('Valid image URL is required');
+    // }
+
+    if (!category || !['directors', 'advisors', 'staff'].includes(category)) {
+      errors.push('Category must be directors, advisors, or staff');
+    }
+
+    if (fullBio && !validator.isLength(fullBio.trim(), { max: 2000 })) {
+      errors.push('Full bio must not exceed 2000 characters');
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation errors',
+        errors: errors
+      });
+    }
+
+    // Get the next display order for this category
+    const lastMember = await Leadership.findOne({ category })
+      .sort({ display_order: -1 });
+
+    const display_order = lastMember ? lastMember.display_order + 1 : 1;
+
+    const newMember = new Leadership({
+      name: validator.escape(name.trim()),
+      title: validator.escape(title.trim()),
+      description: validator.escape(description.trim()),
+      image: image.trim(),
+      hasImage: hasImage !== undefined ? hasImage : true,
+      category,
+      display_order,
+      fullBio: fullBio ? validator.escape(fullBio.trim()) : '',
+      is_active: true
+    });
+
+    await newMember.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Leadership member created successfully',
+      data: newMember
+    });
+  } catch (error) {
+    console.error('Error creating leadership member:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create leadership member',
+      error: error.message
+    });
+  }
+};
+
+// Update leadership member
+export const updateLeadership = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, title, description, image, category, fullBio, is_active, hasImage } = req.body;
+
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid member ID'
+      });
+    }
+
+    // Validation using validator module
+    const errors = [];
+
+    if (name !== undefined && (!name || !validator.isLength(name.trim(), { min: 1, max: 100 }))) {
+      errors.push('Name must be between 1-100 characters');
+    }
+
+    if (title !== undefined && (!title || !validator.isLength(title.trim(), { min: 1, max: 100 }))) {
+      errors.push('Title must be between 1-100 characters');
+    }
+
+    if (description !== undefined && (!description || !validator.isLength(description.trim(), { min: 1, max: 5000 }))) {
+      errors.push('Description must be between 1-500 characters');
+    }
+
+    // if (image !== undefined && (!image || !validator.isURL(image))) { //enable after s3 integrated
+    //   errors.push('Valid image URL is required');
+    // }
+
+    if (category !== undefined && !['directors', 'advisors', 'staff'].includes(category)) {
+      errors.push('Category must be directors, advisors, or staff');
+    }
+
+    if (fullBio !== undefined && fullBio && !validator.isLength(fullBio.trim(), { max: 2000 })) {
+      errors.push('Full bio must not exceed 2000 characters');
+    }
+
+    if (is_active !== undefined && typeof is_active !== 'boolean') {
+      errors.push('is_active must be a boolean value');
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation errors',
+        errors: errors
+      });
+    }
+
+    // Prepare update data
+    const updateData = {};
+    if (name !== undefined) updateData.name = validator.escape(name.trim());
+    if (title !== undefined) updateData.title = validator.escape(title.trim());
+    if (description !== undefined) updateData.description = validator.escape(description.trim());
+    if (image !== undefined) updateData.image = image.trim();
+    if (category !== undefined) updateData.category = category;
+    if (fullBio !== undefined) updateData.fullBio = fullBio ? validator.escape(fullBio.trim()) : '';
+    if (is_active !== undefined) updateData.is_active = is_active;
+    updateData.hasImage = hasImage !== undefined ? hasImage : true
+
+    const member = await Leadership.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leadership member not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Leadership member updated successfully',
+      data: member
+    });
+  } catch (error) {
+    console.error('Error updating leadership member:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update leadership member',
+      error: error.message
+    });
+  }
+};
+
+// Delete leadership member
+export const deleteLeadership = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid member ID'
+      });
+    }
+
+    const member = await Leadership.findByIdAndDelete(id);
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leadership member not found'
+      });
+    }
+
+    // Reorder remaining members in the same category
+    await Leadership.updateMany(
+      {
+        category: member.category,
+        display_order: { $gt: member.display_order }
+      },
+      { $inc: { display_order: -1 } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Leadership member deleted successfully',
+      data: member
+    });
+  } catch (error) {
+    console.error('Error deleting leadership member:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete leadership member',
+      error: error.message
+    });
+  }
+};
+
+// Reorder leadership members
+export const reorderLeadership = async (req, res) => {
+  try {
+    const { items } = req.body;
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Items must be an array'
+      });
+    }
+
+    // Validate each item
+    const errors = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.id || !validator.isMongoId(item.id)) {
+        errors.push(`Item ${i + 1}: Invalid member ID`);
+      }
+      if (typeof item.display_order !== 'number' || item.display_order < 1) {
+        errors.push(`Item ${i + 1}: Invalid display order`);
+      }
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation errors',
+        errors: errors
+      });
+    }
+
+    // Update display_order for each item
+    const updatePromises = items.map(item =>
+      Leadership.findByIdAndUpdate(
+        item.id,
+        { display_order: item.display_order },
+        { new: true }
+      )
+    );
+
+    await Promise.all(updatePromises);
+
+    res.status(200).json({
+      success: true,
+      message: 'Leadership order updated successfully'
+    });
+  } catch (error) {
+    console.error('Error reordering leadership:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reorder leadership members',
+      error: error.message
+    });
   }
 };

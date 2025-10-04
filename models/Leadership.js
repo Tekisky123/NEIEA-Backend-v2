@@ -13,53 +13,24 @@ const leadershipSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    default: ''
+    required: true,
+    trim: true
   },
   image: {
     type: String,
-    default: ''
+    required: true,
+    trim: true
+  },
+  hasImage: { 
+    type: Boolean,
+    default: true
   },
   category: {
     type: String,
+    required: true,
     enum: ['directors', 'advisors', 'staff'],
-    required: true
+    default: 'directors'
   },
-  
-  // Bio-specific fields
-  fullBio: {
-    type: String,
-    default: ''
-  },
-  bioImages: [{
-    url: String,
-    caption: String,
-    displayOrder: Number
-  }],
-  achievements: [{
-    title: String,
-    description: String,
-    year: String
-  }],
-  education: [{
-    degree: String,
-    institution: String,
-    year: String
-  }],
-  experience: [{
-    position: String,
-    organization: String,
-    duration: String,
-    description: String
-  }],
-  
-  // SEO and routing
-  slug: {
-    type: String,
-    unique: true,
-    required: true
-  },
-  
-  // Management fields
   display_order: {
     type: Number,
     default: 0
@@ -68,30 +39,37 @@ const leadershipSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  show_bio: {
-    type: Boolean,
-    default: true
+  fullBio: {
+    type: String,
+    default: ''
   },
-  
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  slug: {
+    type: String,
+    unique: true,
+    sparse: true
   }
+}, {
+  timestamps: true
 });
 
-// Auto-generate slug
+// Generate slug before saving
 leadershipSchema.pre('save', function(next) {
   if (this.isModified('name')) {
-    this.slug = this.name.toLowerCase()
+    this.slug = this.name
+      .toLowerCase()
       .replace(/\s+/g, '-')
       .replace(/\./g, '')
-      .replace(/[^\w\-]+/g, '');
+      .replace(/[^\w\-]+/g, '')
+      .replace(/\-\-+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
   }
   next();
 });
+
+// Index for better performance
+leadershipSchema.index({ category: 1, display_order: 1 });
+leadershipSchema.index({ is_active: 1 });
+leadershipSchema.index({ slug: 1 });
 
 export default mongoose.model('Leadership', leadershipSchema);
