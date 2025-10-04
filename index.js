@@ -17,6 +17,7 @@ import contactRouters from "./routes/contactRoutes.js";
 import subscribeRoutes from "./routes/subscribeRoutes.js";
 import path from 'path';
 import { fileURLToPath } from 'url';
+import LeadershipRoutes from "./routes/LeadershipRoutes.js";
 
 // Get the directory name of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -46,6 +47,7 @@ app.use("/video-cards", videoCardsRoutes);
 app.use("/hero-section", heroSectionRoutes);
 app.use("/bullet-points", bulletPointsRoutes);
 app.use("/testimonials", testimonialsRoutes);
+app.use("/Leadership", LeadershipRoutes);
 app.use("/sections", sectionsRoutes);
 app.use("/volunteer", volunteerRoutes);
 app.use("/contact", contactRouters);

@@ -27,9 +27,9 @@ import {
   updateBulletPoint,
   deleteBulletPoint,
   
-  addTestimonial,
-  updateTestimonial,
-  deleteTestimonial,
+  // addTestimonial,
+  // updateTestimonial,
+  // deleteTestimonial,
   
   addSection,
   updateSection,
@@ -43,7 +43,16 @@ import {
   deleteReferredBy,
 
   downloadBackup,
-  getHomepageContent
+  getHomepageContent,
+  getAllCardTestimonials,
+  createCardTestimonial,
+  updateCardTestimonial,
+  deleteCardTestimonial,
+  getAllVideoTestimonials,
+  createVideoTestimonial,
+  updateVideoTestimonial,
+  deleteVideoTestimonial,
+  reorderTestimonials
 } from '../controllers/adminController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import upload, { uploadCarouselImages, uploadSectionsImage, uploadVideoThumbnail } from '../middleware/upload.js';
@@ -81,9 +90,9 @@ adminRoutes.post('/bullet-points', protect, addBulletPoint);
 adminRoutes.put('/bullet-points/:id', protect, updateBulletPoint);
 adminRoutes.delete('/bullet-points/:id', protect, deleteBulletPoint);
 
-adminRoutes.post('/testimonials', protect, addTestimonial);
-adminRoutes.put('/testimonials/:id', protect, updateTestimonial);
-adminRoutes.delete('/testimonials/:id', protect, deleteTestimonial);
+// adminRoutes.post('/testimonials', protect, addTestimonial);
+// adminRoutes.put('/testimonials/:id', protect, updateTestimonial);
+// adminRoutes.delete('/testimonials/:id', protect, deleteTestimonial);
 
 // Sections Admin Routes
 adminRoutes.post('/sections', protect, uploadSectionsImage, addSection);
@@ -102,5 +111,32 @@ adminRoutes.get('/db-backup', protect, downloadBackup);
 
 adminRoutes.get('/home', protect, getHomepageContent);
 // adminRoutes.get('/home', protect, getHomepageContent);
+
+// V3 Dynamic Things
+
+// Testimonials Routes -----------------------------------------------------
+
+// CARD TESTIMONIALS
+adminRoutes.get('/testimonials/cards', protect ,getAllCardTestimonials);
+adminRoutes.post('/testimonials/cards', protect ,createCardTestimonial);
+adminRoutes.put('/testimonials/cards/:id', protect, updateCardTestimonial);
+adminRoutes.delete('/testimonials/cards/:id', protect, deleteCardTestimonial);
+
+// CARD TESTIMONIALS
+adminRoutes.get('/testimonials/videos', protect, getAllVideoTestimonials);
+adminRoutes.post('/testimonials/videos', protect ,createVideoTestimonial);
+adminRoutes.put('/testimonials/videos/:id', protect, updateVideoTestimonial);
+adminRoutes.delete('/testimonials/videos/:id', protect, deleteVideoTestimonial);
+
+// Reorder
+adminRoutes.put('/testimonials/reorder', protect, reorderTestimonials);
+// ----------------------------------------------------------------------------
+
+// Leadership Routes -----------------------------------------------------
+// router.get('/leadership', protect, getLeadershipMembers);
+// router.post('/leadership', protect, createLeadershipMember);
+// router.put('/leadership/:id', protect, updateLeadershipMember);
+// router.delete('/leadership/:id', protect, deleteLeadershipMember);
+// router.put('/leadership/reorder', protect, reorderLeadershipMembers);
 
 export default adminRoutes;

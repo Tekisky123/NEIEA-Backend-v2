@@ -1,9 +1,16 @@
 import express from 'express';
-import { getTestimonialsByPage } from '../controllers/testimonialsController.js';
+import {
+    getAllCardTestimonials,
+    getAllVideoTestimonials,
+
+} from '../controllers/testimonialsController.js';
 
 const testimonialsRoutes = express.Router();
 
-// Public (frontend)
-testimonialsRoutes.get('/:page', getTestimonialsByPage);
+// Card Testimonials
+testimonialsRoutes.get('/cards', getAllCardTestimonials);;
+
+// Video Testimonials
+testimonialsRoutes.get('/videos', getAllVideoTestimonials);
 
 export default testimonialsRoutes;

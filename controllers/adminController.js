@@ -13,7 +13,8 @@ import { deleteImagesFromS3, deleteSingleImageFromS3 } from "../utils/s3Cleanup.
 import VideoCard from "../models/VideoCard.js";
 import HeroSection from "../models/HeroSection.js";
 import BulletPoint from "../models/BulletPoint.js";
-import Testimonial from "../models/Testimonial.js";
+// import Testimonial from "../models/Testimonial.js";
+import { CardTestimonial, VideoTestimonial } from "../models/Testimonial.js";
 import Section from "../models/Section.js";
 import ReferredBy from "../models/ReferredBy.js";
 
@@ -730,36 +731,36 @@ export const deleteBulletPoint = async (req, res) => {
 };
 
 // Testimonial Admin Functions
-export const addTestimonial = async (req, res) => {
-  try {
-    const testimonial = new Testimonial(req.body);
-    await testimonial.save();
-    res.json({ success: true, data: testimonial });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
+// export const addTestimonial = async (req, res) => {
+//   try {
+//     const testimonial = new Testimonial(req.body);
+//     await testimonial.save();
+//     res.json({ success: true, data: testimonial });
+//   } catch (err) {
+//     res.status(400).json({ success: false, message: err.message });
+//   }
+// };
 
-export const updateTestimonial = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const testimonial = await Testimonial.findByIdAndUpdate(id, req.body, { new: true });
-    if (!testimonial) return res.status(404).json({ success: false, message: 'Not found' });
-    res.json({ success: true, data: testimonial });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
+// export const updateTestimonial = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const testimonial = await Testimonial.findByIdAndUpdate(id, req.body, { new: true });
+//     if (!testimonial) return res.status(404).json({ success: false, message: 'Not found' });
+//     res.json({ success: true, data: testimonial });
+//   } catch (err) {
+//     res.status(400).json({ success: false, message: err.message });
+//   }
+// };
 
-export const deleteTestimonial = async (req, res) => {
-  try {
-    const { id } = req.params;
-    await Testimonial.findByIdAndDelete(id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
+// export const deleteTestimonial = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     await Testimonial.findByIdAndDelete(id);
+//     res.json({ success: true });
+//   } catch (err) {
+//     res.status(400).json({ success: false, message: err.message });
+//   }
+// };
 
 // Sections Admin Functions with S3 Image Handling
 export const addSection = async (req, res, next) => {
@@ -1111,3 +1112,152 @@ export const downloadBackup = async (req, res) => {
 export const getHomepageContent = async (req, res) => {
     
 }
+
+// V3 Dynamic Things
+
+// CARD TESTIMONIALS
+export const getAllCardTestimonials = async (req, res) => {
+  try {
+    const testimonials = await CardTestimonial.find()
+      .sort({ display_order: 1, createdAt: -1 });
+    res.json(testimonials);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch card testimonials' });
+  }
+};
+
+export const createCardTestimonial = async (req, res) => {
+  try {
+    const { name, role, location, image, content } = req.body;
+    const lastTestimonial = await CardTestimonial.findOne()
+      .sort({ display_order: -1 });
+    const nextOrder = lastTestimonial ? lastTestimonial.display_order + 1 : 1;
+    const testimonial = new CardTestimonial({
+      name,
+      role,
+      location,
+      image,
+      content,
+      display_order: nextOrder
+    });
+    await testimonial.save();
+    res.status(201).json(testimonial);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to create card testimonial' });
+  }
+};
+
+export const updateCardTestimonial = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    const testimonial = await CardTestimonial.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    if (!testimonial) {
+      return res.status(404).json({ error: 'Card testimonial not found' });
+    }
+    res.json(testimonial);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update card testimonial' });
+  }
+};
+
+export const deleteCardTestimonial = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const testimonial = await CardTestimonial.findByIdAndDelete(id);
+    if (!testimonial) {
+      return res.status(404).json({ error: 'Card testimonial not found' });
+    }
+    res.json({ message: 'Card testimonial deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete card testimonial' });
+  }
+};
+
+// VIDEO TESTIMONIALS
+export const getAllVideoTestimonials = async (req, res) => {
+  try {
+    const testimonials = await VideoTestimonial.find()
+      .sort({ display_order: 1, createdAt: -1 });
+    res.json(testimonials);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch video testimonials' });
+  }
+};
+
+export const createVideoTestimonial = async (req, res) => {
+  try {
+    const { title, description, type, duration, videoUrl, videoType, videoTag, rating } = req.body;
+    const lastTestimonial = await VideoTestimonial.findOne()
+      .sort({ display_order: -1 });
+    const nextOrder = lastTestimonial ? lastTestimonial.display_order + 1 : 1;
+    const testimonial = new VideoTestimonial({
+      title,
+      description,
+      type,
+      duration,
+      videoUrl,
+      videoType, 
+      videoTag, 
+      rating, 
+      display_order: nextOrder
+    });
+    await testimonial.save();
+    res.status(201).json(testimonial);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to create video testimonial' });
+  }
+};
+
+export const updateVideoTestimonial = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    const testimonial = await VideoTestimonial.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+    if (!testimonial) {
+      return res.status(404).json({ error: 'Video testimonial not found' });
+    }
+    res.json(testimonial);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update video testimonial' });
+  }
+};
+
+export const deleteVideoTestimonial = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const testimonial = await VideoTestimonial.findByIdAndDelete(id);
+    if (!testimonial) {
+      return res.status(404).json({ error: 'Video testimonial not found' });
+    }
+    res.json({ message: 'Video testimonial deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete video testimonial' });
+  }
+};
+
+// REORDER FUNCTIONALITY
+export const reorderTestimonials = async (req, res) => {
+  try {
+    const { type, items } = req.body; // type: 'cards' or 'videos', items: [{id, display_order}]
+    if (!type || !items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Invalid reorder data' });
+    }
+    const Model = type === 'cards' ? CardTestimonial : VideoTestimonial;
+    const updatePromises = items.map(item => 
+      Model.findByIdAndUpdate(item.id, { display_order: item.display_order })
+    );
+    await Promise.all(updatePromises);
+    res.json({ message: 'Testimonials reordered successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reorder testimonials' });
+  }
+};
