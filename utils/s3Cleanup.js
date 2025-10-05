@@ -14,9 +14,10 @@ export const deleteImagesFromS3 = async (files) => {
   
   const deletePromises = files.map(file => {
     const key = file.key; // Extract the S3 key from the file object
+    const decodedKey = decodeURIComponent(key);
     const command = new DeleteObjectCommand({
       Bucket: process.env.AWSS_BUCKET_NAME,
-      Key: key
+      Key: decodedKey
     });
     return s3.send(command);
   });
@@ -31,15 +32,19 @@ export const deleteImagesFromS3 = async (files) => {
 
 // Helper function to delete a single image from S3
 export const deleteSingleImageFromS3 = async (fileKey) => {
+
+  
   if (!fileKey) return;
   
+  const decodedKey = decodeURIComponent(fileKey);
+
   try {
     const command = new DeleteObjectCommand({
       Bucket: process.env.AWSS_BUCKET_NAME,
-      Key: fileKey
+      Key: decodedKey
     });
     await s3.send(command);
-    console.log('Successfully deleted image from S3:', fileKey);
+    console.log('Successfully deleted image from S3:', decodedKey);
   } catch (error) {
     console.error('Error deleting image from S3:', error);
   }

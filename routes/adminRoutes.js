@@ -62,7 +62,7 @@ import {
   reorderLeadership
 } from '../controllers/adminController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import upload, { uploadCarouselImages, uploadSectionsImage, uploadVideoThumbnail } from '../middleware/upload.js';
+import upload, { uploadCarouselImages, uploadLeadershipImage, uploadSectionsImage, uploadTestimonialsImage, uploadVideoThumbnail } from '../middleware/upload.js';
 
 const adminRoutes = express.Router();
 
@@ -125,8 +125,8 @@ adminRoutes.get('/home', protect, getHomepageContent);
 
 // CARD TESTIMONIALS
 adminRoutes.get('/testimonials/cards', protect, getAllCardTestimonials);
-adminRoutes.post('/testimonials/cards', protect, createCardTestimonial);
-adminRoutes.put('/testimonials/cards/:id', protect, updateCardTestimonial);
+adminRoutes.post('/testimonials/cards', protect, uploadTestimonialsImage, createCardTestimonial);
+adminRoutes.put('/testimonials/cards/:id', protect, uploadTestimonialsImage, updateCardTestimonial);
 adminRoutes.delete('/testimonials/cards/:id', protect, deleteCardTestimonial);
 
 // CARD TESTIMONIALS
@@ -143,8 +143,8 @@ adminRoutes.put('/testimonials/reorder', protect, reorderTestimonials);
 
 adminRoutes.get('/leadership', protect, getAllLeadership);
 adminRoutes.get('/leadership/:id', protect, getLeadershipById);
-adminRoutes.post('/leadership', protect, createLeadership);
-adminRoutes.put('/leadership/:id', protect, updateLeadership);
+adminRoutes.post('/leadership', protect, uploadLeadershipImage, createLeadership);
+adminRoutes.put('/leadership/:id', protect, uploadLeadershipImage, updateLeadership);
 adminRoutes.delete('/leadership/:id', protect, deleteLeadership);
 adminRoutes.post('/leadership/reorder', protect, reorderLeadership);
 

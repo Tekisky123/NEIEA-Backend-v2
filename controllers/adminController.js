@@ -19,6 +19,11 @@ import Section from "../models/Section.js";
 import ReferredBy from "../models/ReferredBy.js";
 import validator from 'validator';
 
+function createS3KeyFromImageUrl(url) {
+  const urlParts = url.split('/');
+  return urlParts.slice(-2).join('/'); // Get the last two parts (folder/filename)
+}
+
 export const createAdmin = async (req, res) => {
   const { firstName, lastName, email, password, role } = req.body;
 
@@ -1134,17 +1139,22 @@ export const createCardTestimonial = async (req, res) => {
     const lastTestimonial = await CardTestimonial.findOne()
       .sort({ display_order: -1 });
     const nextOrder = lastTestimonial ? lastTestimonial.display_order + 1 : 1;
+    const imageUrl = req.file ? req.file.location : null; // S3 URL if uploaded
     const testimonial = new CardTestimonial({
       name,
       role,
       location,
-      image,
+      image: imageUrl,
       content,
       display_order: nextOrder
     });
     await testimonial.save();
     res.status(201).json(testimonial);
   } catch (error) {
+    if (req.file) {
+      await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+      console.log("testimonials: s3 uploaded image has been deleted")
+    }
     res.status(400).json({ error: 'Failed to create card testimonial' });
   }
 };
@@ -1153,19 +1163,44 @@ export const updateCardTestimonial = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+
+    // Fetch the existing testimonial to get the current image URL
+    const existingTestimonial = await CardTestimonial.findById(id);
+    if (!existingTestimonial) {
+      if (req.file) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+        console.log("Update testimonials: S3 uploaded image has been deleted because the testimonial was not found.");
+      }
+      return res.status(404).json({ error: 'Card testimonial not found' });
+    }
+
+    // If a new image is uploaded, delete the existing image from S3
+    if (req.file) {
+      if (existingTestimonial.image) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(existingTestimonial.image));
+        console.log("Update testimonials: s3 Existing image has been deleted!.");
+      }
+      updateData.image = req.file.location; // Update image URL with the new S3 URL
+    }
+
+    // Update the testimonial in the database
     const testimonial = await CardTestimonial.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
     );
-    if (!testimonial) {
-      return res.status(404).json({ error: 'Card testimonial not found' });
-    }
+
     res.json(testimonial);
   } catch (error) {
+    console.error("Error updating card testimonial:", error);
+    if (req.file) {
+      await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+      console.log("update Testimonials: S3 uploaded image has been deleted due to an unexpected error.");
+    }
     res.status(400).json({ error: 'Failed to update card testimonial' });
   }
 };
+
 
 export const deleteCardTestimonial = async (req, res) => {
   try {
@@ -1173,6 +1208,10 @@ export const deleteCardTestimonial = async (req, res) => {
     const testimonial = await CardTestimonial.findByIdAndDelete(id);
     if (!testimonial) {
       return res.status(404).json({ error: 'Card testimonial not found' });
+    }
+    if (testimonial.image) {
+      await deleteSingleImageFromS3(createS3KeyFromImageUrl(testimonial.image));
+      console.log("delete Testimonials: S3 uploaded image has been deleted.");
     }
     res.json({ message: 'Card testimonial deleted successfully' });
   } catch (error) {
@@ -1325,7 +1364,7 @@ export const getLeadershipById = async (req, res) => {
 // Create new leadership member
 export const createLeadership = async (req, res) => {
   try {
-    const { name, title, description, image, category, fullBio, hasImage } = req.body;
+    const { name, title, description, category, fullBio, hasImage } = req.body;
 
     // Validation using validator module
     const errors = [];
@@ -1355,12 +1394,19 @@ export const createLeadership = async (req, res) => {
     }
 
     if (errors.length > 0) {
+      if (req.file) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+        console.log('leadership: s3 uploaded image has been deleted!')
+      }
       return res.status(400).json({
         success: false,
         message: 'Validation errors',
         errors: errors
       });
     }
+
+    // Handle image upload (optional)
+    const imageUrl = req.file ? req.file.location : null; // S3 URL if uploaded
 
     // Get the next display order for this category
     const lastMember = await Leadership.findOne({ category })
@@ -1372,7 +1418,7 @@ export const createLeadership = async (req, res) => {
       name: validator.escape(name.trim()),
       title: validator.escape(title.trim()),
       description: validator.escape(description.trim()),
-      image: image.trim(),
+      image: imageUrl,
       hasImage: hasImage !== undefined ? hasImage : true,
       category,
       display_order,
@@ -1389,6 +1435,10 @@ export const createLeadership = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating leadership member:', error);
+    if (req.file) {
+      await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+      console.log('leadership: s3 uploaded image has been deleted!')
+    }
     res.status(500).json({
       success: false,
       message: 'Failed to create leadership member',
@@ -1401,12 +1451,29 @@ export const createLeadership = async (req, res) => {
 export const updateLeadership = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, title, description, image, category, fullBio, is_active, hasImage } = req.body;
+    const { name, title, description, category, fullBio, is_active, hasImage } = req.body;
 
     if (!validator.isMongoId(id)) {
+      if (req.file) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+        console.log('update leadership: s3 uploaded image has been deleted!')
+      }
       return res.status(400).json({
         success: false,
         message: 'Invalid member ID'
+      });
+    }
+
+    // Fetch the existing member to get the current image URL
+    const existingMember = await Leadership.findById(id);
+    if (!existingMember) {
+      if (req.file) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+        console.log('Update leadership: s3 Uploaded image has been deleted because the member was not found!');
+      }
+      return res.status(404).json({
+        success: false,
+        message: 'Leadership member not found',
       });
     }
 
@@ -1442,6 +1509,10 @@ export const updateLeadership = async (req, res) => {
     }
 
     if (errors.length > 0) {
+      if (req.file) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+        console.log('update leadership: s3 uploaded image has been deleted!')
+      }
       return res.status(400).json({
         success: false,
         message: 'Validation errors',
@@ -1454,11 +1525,21 @@ export const updateLeadership = async (req, res) => {
     if (name !== undefined) updateData.name = validator.escape(name.trim());
     if (title !== undefined) updateData.title = validator.escape(title.trim());
     if (description !== undefined) updateData.description = validator.escape(description.trim());
-    if (image !== undefined) updateData.image = image.trim();
+    if (req.file) {
+      // Delete the existing image from S3 if it exists
+      if (existingMember.image) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(existingMember.image));
+        console.log('Update leadership: s3 Existing image has been deleted!');
+      }
+      updateData.image = req.file.location; // Assuming `req.file.location` contains the S3 URL
+      updateData.hasImage = true;
+    }
+    if (hasImage !== undefined) {
+      updateData.hasImage = hasImage; // Override hasImage based on the request body
+    }
     if (category !== undefined) updateData.category = category;
     if (fullBio !== undefined) updateData.fullBio = fullBio ? validator.escape(fullBio.trim()) : '';
     if (is_active !== undefined) updateData.is_active = is_active;
-    updateData.hasImage = hasImage !== undefined ? hasImage : true
 
     const member = await Leadership.findByIdAndUpdate(
       id,
@@ -1467,6 +1548,10 @@ export const updateLeadership = async (req, res) => {
     );
 
     if (!member) {
+      if (req.file) {
+        await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+        console.log('update leadership: s3 uploaded image has been deleted!')
+      }
       return res.status(404).json({
         success: false,
         message: 'Leadership member not found'
@@ -1480,6 +1565,10 @@ export const updateLeadership = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating leadership member:', error);
+    if (req.file) {
+      await deleteSingleImageFromS3(createS3KeyFromImageUrl(req.file));
+      console.log('update leadership: s3 uploaded image has been deleted!')
+    }
     res.status(500).json({
       success: false,
       message: 'Failed to update leadership member',
@@ -1517,6 +1606,11 @@ export const deleteLeadership = async (req, res) => {
       },
       { $inc: { display_order: -1 } }
     );
+
+    if (member.image) {
+      await deleteSingleImageFromS3(createS3KeyFromImageUrl(member.image));
+      console.log('delete leadership: s3 uploaded image has been deleted!')
+    }
 
     res.status(200).json({
       success: true,

@@ -127,5 +127,37 @@ const uploadSectionsImage = multer({
   },
 }).single('image');
 
+const uploadTestimonialsImage = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: process.env.AWSS_BUCKET_NAME,
+    // acl: 'public-read',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      cb(null, `testimonials/${Date.now().toString()}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 2000000 }, // 2MB limit
+  fileFilter: function (req, file, cb) {
+    checkFileType(file, cb);
+  },
+}).single('image');
+
+const uploadLeadershipImage = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: process.env.AWSS_BUCKET_NAME,
+    // acl: 'public-read',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      cb(null, `leadership/${Date.now().toString()}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 2000000 }, // 2MB limit
+  fileFilter: function (req, file, cb) {
+    checkFileType(file, cb);
+  },
+}).single('image');
+
 export default upload;
-export { uploadInstitutionFiles, uploadCarouselImages, uploadSectionsImage, uploadVideoThumbnail };
+export { uploadInstitutionFiles, uploadCarouselImages, uploadSectionsImage, uploadVideoThumbnail, uploadTestimonialsImage, uploadLeadershipImage };
