@@ -16,8 +16,10 @@ import volunteerRoutes from "./routes/volunteerRoutes.js";
 import contactRouters from "./routes/contactRoutes.js";
 import subscribeRoutes from "./routes/subscribeRoutes.js";
 import path from 'path';
+import morgan from 'morgan';
 import { fileURLToPath } from 'url';
 import LeadershipRoutes from "./routes/LeadershipRoutes.js";
+import galleryRoutes from "./routes/galleryRoutes.js";
 
 // Get the directory name of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -32,6 +34,7 @@ const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(morgan('dev'))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(cors({
     origin: '*',
@@ -48,6 +51,8 @@ app.use("/hero-section", heroSectionRoutes);
 app.use("/bullet-points", bulletPointsRoutes);
 app.use("/testimonials", testimonialsRoutes);
 app.use("/Leadership", LeadershipRoutes);
+app.use("/gallery", galleryRoutes);
+
 app.use("/sections", sectionsRoutes);
 app.use("/volunteer", volunteerRoutes);
 app.use("/contact", contactRouters);

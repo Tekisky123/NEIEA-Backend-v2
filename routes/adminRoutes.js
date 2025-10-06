@@ -59,10 +59,17 @@ import {
   createLeadership,
   updateLeadership,
   deleteLeadership,
-  reorderLeadership
+  reorderLeadership,
+  getAllGalleryItems,
+  getGalleryItemById,
+  createGalleryItem,
+  updateGalleryItem,
+  deleteGalleryItem,
+  reorderGalleryItems,
+  toggleGalleryItemStatus
 } from '../controllers/adminController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import upload, { uploadCarouselImages, uploadLeadershipImage, uploadSectionsImage, uploadTestimonialsImage, uploadVideoThumbnail } from '../middleware/upload.js';
+import upload, { uploadCarouselImages, uploadGalleryImage, uploadLeadershipImage, uploadSectionsImage, uploadTestimonialsImage, uploadVideoThumbnail } from '../middleware/upload.js';
 
 const adminRoutes = express.Router();
 
@@ -147,6 +154,15 @@ adminRoutes.post('/leadership', protect, uploadLeadershipImage, createLeadership
 adminRoutes.put('/leadership/:id', protect, uploadLeadershipImage, updateLeadership);
 adminRoutes.delete('/leadership/:id', protect, deleteLeadership);
 adminRoutes.post('/leadership/reorder', protect, reorderLeadership);
+
+// Gallery Routes -----------------------------------------------------
+adminRoutes.get('/gallery', protect, getAllGalleryItems);
+adminRoutes.put('/gallery/reorder', protect, reorderGalleryItems);
+adminRoutes.get('/gallery/:id', protect, getGalleryItemById);
+adminRoutes.post('/gallery', protect, uploadGalleryImage, createGalleryItem);
+adminRoutes.put('/gallery/:id', protect, uploadGalleryImage, updateGalleryItem);
+adminRoutes.delete('/gallery/:id', protect, deleteGalleryItem);
+adminRoutes.put('/gallery/:id/toggle-status', protect, toggleGalleryItemStatus);
 
 
 export default adminRoutes;

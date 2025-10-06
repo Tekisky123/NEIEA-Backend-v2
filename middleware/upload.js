@@ -159,5 +159,21 @@ const uploadLeadershipImage = multer({
   },
 }).single('image');
 
+const uploadGalleryImage = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: process.env.AWSS_BUCKET_NAME,
+    // acl: 'public-read',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      cb(null, `gallery/${Date.now().toString()}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 2000000 }, // 2MB limit
+  fileFilter: function (req, file, cb) {
+    checkFileType(file, cb);
+  },
+}).single('image');
+
 export default upload;
-export { uploadInstitutionFiles, uploadCarouselImages, uploadSectionsImage, uploadVideoThumbnail, uploadTestimonialsImage, uploadLeadershipImage };
+export { uploadInstitutionFiles, uploadCarouselImages, uploadSectionsImage, uploadVideoThumbnail, uploadTestimonialsImage, uploadLeadershipImage, uploadGalleryImage };

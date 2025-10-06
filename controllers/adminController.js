@@ -18,6 +18,7 @@ import { CardTestimonial, VideoTestimonial } from "../models/Testimonial.js";
 import Section from "../models/Section.js";
 import ReferredBy from "../models/ReferredBy.js";
 import validator from 'validator';
+import GalleryItem from '../models/GalleryItem.js';
 
 function createS3KeyFromImageUrl(url) {
   const urlParts = url.split('/');
@@ -1679,6 +1680,392 @@ export const reorderLeadership = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to reorder leadership members',
+      error: error.message
+    });
+  }
+};
+
+// GET /api/admin/gallery - Get all gallery items (Admin)
+export const getAllGalleryItems = async (req, res) => {
+  try {
+    const { category, page = 1, limit = 50 } = req.query;
+    
+    let query = {};
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const items = await GalleryItem.find(query)
+      .sort({ display_order: 1, created_at: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+    
+    const total = await GalleryItem.countDocuments(query);
+    
+    res.status(200).json({
+      success: true,
+      data: items,
+      pagination: {
+        current: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit)),
+        total: total
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching gallery items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch gallery items',
+      error: error.message
+    });
+  }
+};
+
+// GET /api/admin/gallery/:id - Get single gallery item (Admin)
+export const getGalleryItemById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid gallery item ID'
+      });
+    }
+    
+    const item = await GalleryItem.findById(id);
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Gallery item not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: item
+    });
+  } catch (error) {
+    console.error('Error fetching gallery item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch gallery item',
+      error: error.message
+    });
+  }
+};
+
+// POST /api/admin/gallery - Create new gallery item (Admin)
+export const createGalleryItem = async (req, res) => {
+  try {
+    const { title, description, category, year } = req.body;
+    
+    // Validation using validator package
+    if (!title || !validator.isLength(title, { min: 1, max: 255 })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title is required and must be between 1-255 characters'
+      });
+    }
+    
+    if (!description || !validator.isLength(description, { min: 1, max: 1000 })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Description is required and must be between 1-1000 characters'
+      });
+    }
+    
+    if (!category || !validator.isIn(category, ['events', 'leadership', 'partnerships', 'workshops', 'digital'])) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category is required and must be one of: events, leadership, partnerships, workshops, digital'
+      });
+    }
+    
+    if (!year || !validator.isInt(year, { min: 2000, max: 2030 })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year is required and must be between 2000-2030'
+      });
+    }
+    
+    if (!req.file || !req.file.location) {
+      return res.status(400).json({
+        success: false,
+        message: 'Image file is required'
+      });
+    }
+    
+    // Get the next display order for the category
+    const lastItem = await GalleryItem.findOne({ category })
+      .sort({ display_order: -1 });
+    const nextOrder = lastItem ? lastItem.display_order + 1 : 1;
+
+    const galleryItem = new GalleryItem({
+      title: validator.escape(title.trim()),
+      description: validator.escape(description.trim()),
+      category,
+      year: validator.escape(year.trim()),
+      image: req.file.location, // S3 URL
+      display_order: nextOrder
+    });
+
+    await galleryItem.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Gallery item created successfully',
+      data: galleryItem
+    });
+  } catch (error) {
+    console.error('Error creating gallery item:', error);
+    
+    // Clean up uploaded file if database save fails
+    if (req.file && req.file.key) {
+      await deleteSingleImageFromS3(req.file.key);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create gallery item',
+      error: error.message
+    });
+  }
+};
+
+// PUT /api/admin/gallery/:id - Update gallery item (Admin)
+export const updateGalleryItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, year } = req.body;
+    
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid gallery item ID'
+      });
+    }
+    
+    // Validation using validator package
+    if (title && !validator.isLength(title, { min: 1, max: 255 })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title must be between 1-255 characters'
+      });
+    }
+    
+    if (description && !validator.isLength(description, { min: 1, max: 1000 })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Description must be between 1-1000 characters'
+      });
+    }
+    
+    if (category && !validator.isIn(category, ['events', 'leadership', 'partnerships', 'workshops', 'digital'])) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category must be one of: events, leadership, partnerships, workshops, digital'
+      });
+    }
+    
+    if (year && !validator.isInt(year, { min: 2000, max: 2030 })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be between 2000-2030'
+      });
+    }
+    
+    // Get existing item to check for old image
+    const existingItem = await GalleryItem.findById(id);
+    if (!existingItem) {
+      return res.status(404).json({
+        success: false,
+        message: 'Gallery item not found'
+      });
+    }
+    
+    const updateData = {
+      updated_at: new Date()
+    };
+    
+    if (title) updateData.title = validator.escape(title.trim());
+    if (description) updateData.description = validator.escape(description.trim());
+    if (category) updateData.category = category;
+    if (year) updateData.year = validator.escape(year.trim());
+    
+    // Handle new image upload
+    if (req.file && req.file.location) {
+      updateData.image = req.file.location;
+    }
+
+    const item = await GalleryItem.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    // Delete old image from S3 if new image was uploaded
+    if (req.file && req.file.location && existingItem.image !== req.file.location) {
+      const oldImageKey = existingItem.image.split('/').slice(-2).join('/'); // Extract key from S3 URL
+      await deleteSingleImageFromS3(oldImageKey);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Gallery item updated successfully',
+      data: item
+    });
+  } catch (error) {
+    console.error('Error updating gallery item:', error);
+    
+    // Clean up uploaded file if database update fails
+    if (req.file && req.file.key) {
+      await deleteSingleImageFromS3(req.file.key);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update gallery item',
+      error: error.message
+    });
+  }
+};
+
+// DELETE /api/admin/gallery/:id - Delete gallery item (Admin)
+export const deleteGalleryItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid gallery item ID'
+      });
+    }
+    
+    const item = await GalleryItem.findById(id);
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Gallery item not found'
+      });
+    }
+    
+    // Delete image from S3
+    if (item.image) {
+      const imageKey = item.image.split('/').slice(-2).join('/'); // Extract key from S3 URL
+      await deleteSingleImageFromS3(imageKey);
+    }
+    
+    await GalleryItem.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Gallery item deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting gallery item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete gallery item',
+      error: error.message
+    });
+  }
+};
+
+// PUT /api/admin/gallery/reorder - Reorder gallery items (Admin)
+export const reorderGalleryItems = async (req, res) => {
+  try {
+    const { items } = req.body;
+    
+    if (!Array.isArray(items)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Items must be an array'
+      });
+    }
+    
+    // Validate each item in the array
+    for (const item of items) {
+      if (!item.id || !validator.isMongoId(item.id.toString())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid item ID in reorder array'
+        });
+      }
+      
+      if (typeof item.display_order !== 'number' || item.display_order < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Display order must be a non-negative number'
+        });
+      }
+    }
+
+    // Update display order for each item
+    const updatePromises = items.map(item => 
+      GalleryItem.findByIdAndUpdate(
+        item.id,
+        { display_order: item.display_order },
+        { new: true }
+      )
+    );
+
+    await Promise.all(updatePromises);
+
+    res.status(200).json({
+      success: true,
+      message: 'Gallery items reordered successfully'
+    });
+  } catch (error) {
+    console.error('Error reordering gallery items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reorder gallery items',
+      error: error.message
+    });
+  }
+};
+
+// PUT /api/admin/gallery/:id/toggle-status - Toggle gallery item status (Admin)
+export const toggleGalleryItemStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid gallery item ID'
+      });
+    }
+    
+    const item = await GalleryItem.findById(id);
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Gallery item not found'
+      });
+    }
+    
+    item.is_active = !item.is_active;
+    await item.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Gallery item ${item.is_active ? 'activated' : 'deactivated'} successfully`,
+      data: item
+    });
+  } catch (error) {
+    console.error('Error toggling gallery item status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to toggle gallery item status',
       error: error.message
     });
   }
