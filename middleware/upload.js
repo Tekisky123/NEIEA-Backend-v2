@@ -218,7 +218,12 @@ const uploadPartnerInstitutionImages = multer({
       cb(null, `${folder}/${Date.now().toString()}-${file.originalname}`);
     },
   }),
-  limits: { fileSize: 2000000 }, // 2MB limit per image
+  limits: { 
+    fileSize: 2000000, // 2MB per file
+    files: 11, // Max 11 files total (1 featured + 10 details)
+    fieldSize: 10 * 1024 * 1024, // 10MB for non-file fields
+    // Note: This won't help with Vercel's 4.5MB limit
+  },
   fileFilter: function (req, file, cb) {
     checkFileType(file, cb);
   },
