@@ -66,10 +66,15 @@ import {
   updateGalleryItem,
   deleteGalleryItem,
   reorderGalleryItems,
-  toggleGalleryItemStatus
+  toggleGalleryItemStatus,
+  getAllPartnerInstitutions,
+  reorderPartnerInstitutions,
+  createPartnerInstitution,
+  updatePartnerInstitution,
+  deletePartnerInstitution
 } from '../controllers/adminController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import upload, { uploadCarouselImages, uploadGalleryImage, uploadLeadershipImage, uploadSectionsImage, uploadTestimonialsImage, uploadVideoThumbnail } from '../middleware/upload.js';
+import upload, { uploadCarouselImages, uploadGalleryImage, uploadLeadershipImage, uploadPartnerInstitutionImages, uploadSectionsImage, uploadTestimonialsImage, uploadVideoThumbnail } from '../middleware/upload.js';
 
 const adminRoutes = express.Router();
 
@@ -163,6 +168,13 @@ adminRoutes.post('/gallery', protect, uploadGalleryImage, createGalleryItem);
 adminRoutes.put('/gallery/:id', protect, uploadGalleryImage, updateGalleryItem);
 adminRoutes.delete('/gallery/:id', protect, deleteGalleryItem);
 adminRoutes.put('/gallery/:id/toggle-status', protect, toggleGalleryItemStatus);
+
+// Partner Institution Routes -----------------------------------------------------
+adminRoutes.get('/partner-institution', protect, getAllPartnerInstitutions);
+adminRoutes.put('/partner-institution/reorder', protect, reorderPartnerInstitutions);
+adminRoutes.post('/partner-institution', protect, uploadPartnerInstitutionImages ,createPartnerInstitution);
+adminRoutes.put('/partner-institution/:id', protect, uploadPartnerInstitutionImages ,updatePartnerInstitution);
+adminRoutes.delete('/partner-institution/:id', protect, deletePartnerInstitution);
 
 
 export default adminRoutes;

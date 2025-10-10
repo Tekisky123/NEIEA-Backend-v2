@@ -20,6 +20,7 @@ import morgan from 'morgan';
 import { fileURLToPath } from 'url';
 import LeadershipRoutes from "./routes/LeadershipRoutes.js";
 import galleryRoutes from "./routes/galleryRoutes.js";
+import partnerInstitutionRoutes from "./routes/partnerInstitutionRoutes.js";
 
 // Get the directory name of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +53,7 @@ app.use("/bullet-points", bulletPointsRoutes);
 app.use("/testimonials", testimonialsRoutes);
 app.use("/Leadership", LeadershipRoutes);
 app.use("/gallery", galleryRoutes);
+app.use("/partner-institution", partnerInstitutionRoutes);
 
 app.use("/sections", sectionsRoutes);
 app.use("/volunteer", volunteerRoutes);

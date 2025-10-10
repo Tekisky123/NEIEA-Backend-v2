@@ -175,5 +175,69 @@ const uploadGalleryImage = multer({
   },
 }).single('image');
 
+// Partner Institution Featured Image Upload (Card Image)
+const uploadPartnerInstitutionFeaturedImage = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: process.env.AWSS_BUCKET_NAME,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      cb(null, `partner-institutions/${Date.now().toString()}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 2000000 }, // 2MB limit
+  fileFilter: function (req, file, cb) {
+    checkFileType(file, cb);
+  },
+}).single('featuredImage');
+
+// Partner Institution Detail Images Upload (Multiple)
+const uploadPartnerInstitutionDetailImages = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: process.env.AWSS_BUCKET_NAME,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      cb(null, `partner-institutions/details/${Date.now().toString()}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 2000000 }, // 2MB limit per image
+  fileFilter: function (req, file, cb) {
+    checkFileType(file, cb);
+  },
+}).array('detailImages', 10); // Maximum 10 images
+
+// Combined upload for Partner Institutions (Featured + Details)
+const uploadPartnerInstitutionImages = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: process.env.AWSS_BUCKET_NAME,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      const folder = file.fieldname === 'featuredImage' ? 'partner-institutions' : 'partner-institutions/details';
+      cb(null, `${folder}/${Date.now().toString()}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 2000000 }, // 2MB limit per image
+  fileFilter: function (req, file, cb) {
+    checkFileType(file, cb);
+  },
+}).fields([
+  { name: 'featuredImage', maxCount: 1 },
+  { name: 'detailImages', maxCount: 10 }
+]);
+
 export default upload;
-export { uploadInstitutionFiles, uploadCarouselImages, uploadSectionsImage, uploadVideoThumbnail, uploadTestimonialsImage, uploadLeadershipImage, uploadGalleryImage };
+export { 
+  upload, 
+  uploadInstitutionFiles, 
+  uploadCarouselImages, 
+  uploadSectionsImage, 
+  uploadVideoThumbnail, 
+  uploadTestimonialsImage, 
+  uploadLeadershipImage, 
+  uploadGalleryImage,
+  uploadPartnerInstitutionFeaturedImage,
+  uploadPartnerInstitutionDetailImages,
+  uploadPartnerInstitutionImages
+};

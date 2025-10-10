@@ -19,6 +19,7 @@ import Section from "../models/Section.js";
 import ReferredBy from "../models/ReferredBy.js";
 import validator from 'validator';
 import GalleryItem from '../models/GalleryItem.js';
+import PartnerInstitution from '../models/PartnerInstitution.js';
 
 function createS3KeyFromImageUrl(url) {
   const urlParts = url.split('/');
@@ -2070,3 +2071,400 @@ export const toggleGalleryItemStatus = async (req, res) => {
     });
   }
 };
+
+// @desc    Get all partner institutions (Admin)
+// @route   GET /api/admin/partner-institution
+// @access  Private/Admin
+export const getAllPartnerInstitutions = async (req, res) => {
+  try {
+    const institutions = await PartnerInstitution.find()
+      .sort({ display_order: 1, createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      data: institutions
+    });
+  } catch (error) {
+    console.error('Error fetching partner institutions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch partner institutions'
+    });
+  }
+};
+
+// @desc    Get single partner institution by ID (Admin)
+// @route   GET /api/admin/partner-institution/:id
+// @access  Private/Admin
+export const getPartnerInstitutionById = async (req, res) => {
+  try {
+    const institution = await PartnerInstitution.findById(req.params.id);
+    
+    if (!institution) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner institution not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: institution
+    });
+  } catch (error) {
+    console.error('Error fetching partner institution:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch partner institution'
+    });
+  }
+};
+
+// @desc    Create new partner institution
+// @route   POST /api/admin/partner-institution
+// @access  Private/Admin
+export const createPartnerInstitution = async (req, res) => {
+  try {
+    const {
+      name,
+      shortName,
+      location,
+      address,
+      website,
+      facebook,
+      shortDescription,
+      about,
+      foundingStory,
+      challenges,
+      neieaImpact,
+      additionalInfo,
+      totalStudents,
+      established
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !shortName || !location || !shortDescription || !totalStudents || !established) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+    }
+
+    // Check for images
+    if (!req.files || !req.files.featuredImage || !req.files.detailImages) {
+      return res.status(400).json({
+        success: false,
+        message: 'Featured image and detail images are required'
+      });
+    }
+
+    const featuredImage = req.files.featuredImage[0];
+    const detailImages = req.files.detailImages;
+
+    // Get the highest display_order
+    const lastInstitution = await PartnerInstitution.findOne()
+      .sort({ display_order: -1 });
+    const display_order = lastInstitution ? lastInstitution.display_order + 1 : 1;
+
+    // Create institution
+    const institution = await PartnerInstitution.create({
+      name,
+      shortName,
+      location,
+      address,
+      website,
+      facebook,
+      featuredImage: featuredImage.location,
+      featuredImageKey: featuredImage.key,
+      detailImages: detailImages.map(img => img.location),
+      detailImageKeys: detailImages.map(img => img.key),
+      shortDescription,
+      about,
+      foundingStory,
+      challenges,
+      neieaImpact,
+      additionalInfo,
+      totalStudents,
+      established,
+      display_order
+    });
+
+    res.status(201).json({
+      success: true,
+      data: institution,
+      message: 'Partner institution created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating partner institution:', error);
+    
+    // Cleanup uploaded images on error
+    if (req.files) {
+      if (req.files.featuredImage) {
+        await deleteSingleImageFromS3(req.files.featuredImage[0].key);
+      }
+      if (req.files.detailImages) {
+        for (const img of req.files.detailImages) {
+          await deleteSingleImageFromS3(img.key);
+        }
+      }
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create partner institution'
+    });
+  }
+};
+
+// @desc    Update partner institution
+// @route   PUT /api/admin/partner-institution/:id
+// @access  Private/Admin
+export const updatePartnerInstitution = async (req, res) => {
+  try {
+    const institution = await PartnerInstitution.findById(req.params.id);
+    
+    if (!institution) {
+      // Cleanup uploaded images if any
+      if (req.files) {
+        if (req.files.featuredImage) {
+          await deleteSingleImageFromS3(req.files.featuredImage[0].key);
+        }
+        if (req.files.detailImages) {
+          for (const img of req.files.detailImages) {
+            await deleteSingleImageFromS3(img.key);
+          }
+        }
+      }
+      
+      return res.status(404).json({
+        success: false,
+        message: 'Partner institution not found'
+      });
+    }
+
+    // ========================================
+    // HANDLE DETAIL IMAGES UPDATE
+    // ========================================
+    
+    let finalDetailImages = [];
+    let finalDetailImageKeys = [];
+    
+    // Step 1: Parse existing images from request (images to keep)
+    let existingImagesToKeep = [];
+    let existingKeysToKeep = [];
+    
+    if (req.body.existingDetailImages) {
+      try {
+        const parsedExisting = JSON.parse(req.body.existingDetailImages);
+        existingImagesToKeep = Array.isArray(parsedExisting) ? parsedExisting : [];
+        
+        // Get corresponding keys for images we're keeping
+        existingKeysToKeep = existingImagesToKeep.map(url => {
+          const index = institution.detailImages.indexOf(url);
+          return index !== -1 ? institution.detailImageKeys[index] : null;
+        }).filter(key => key !== null);
+        
+      } catch (e) {
+        console.error('Error parsing existingDetailImages:', e);
+      }
+    }
+    
+    // Step 2: Parse images to remove
+    let imagesToRemove = [];
+    if (req.body.imagesToRemove) {
+      try {
+        const parsedRemove = JSON.parse(req.body.imagesToRemove);
+        imagesToRemove = Array.isArray(parsedRemove) ? parsedRemove : [];
+      } catch (e) {
+        console.error('Error parsing imagesToRemove:', e);
+      }
+    }
+    
+    // Step 3: Delete images from S3 that are marked for removal
+    if (imagesToRemove.length > 0) {
+      for (const imageInfo of imagesToRemove) {
+        if (imageInfo.key) {
+          await deleteSingleImageFromS3(imageInfo.key);
+          console.log('Deleted image from S3:', imageInfo.key);
+        }
+      }
+    }
+    
+    // Step 4: Add existing images that we're keeping
+    finalDetailImages = [...existingImagesToKeep];
+    finalDetailImageKeys = [...existingKeysToKeep];
+    
+    // Step 5: Add new uploaded images
+    if (req.files && req.files.detailImages && req.files.detailImages.length > 0) {
+      const newDetailImages = req.files.detailImages;
+      const newImageUrls = newDetailImages.map(img => img.location);
+      const newImageKeys = newDetailImages.map(img => img.key);
+      
+      finalDetailImages = [...finalDetailImages, ...newImageUrls];
+      finalDetailImageKeys = [...finalDetailImageKeys, ...newImageKeys];
+      
+      console.log('Added new images:', newImageUrls.length);
+    }
+    
+    // Step 6: Validate that at least one detail image exists
+    if (finalDetailImages.length === 0) {
+      // Cleanup new uploads if validation fails
+      if (req.files && req.files.detailImages) {
+        for (const img of req.files.detailImages) {
+          await deleteSingleImageFromS3(img.key);
+        }
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: 'At least one detail image is required'
+      });
+    }
+    
+    // Step 7: Update institution with final image arrays
+    institution.detailImages = finalDetailImages;
+    institution.detailImageKeys = finalDetailImageKeys;
+
+    // ========================================
+    // HANDLE FEATURED IMAGE UPDATE (if provided)
+    // ========================================
+    
+    if (req.files && req.files.featuredImage) {
+      const oldFeaturedImageKey = institution.featuredImageKey;
+      const newFeaturedImage = req.files.featuredImage[0];
+      
+      institution.featuredImage = newFeaturedImage.location;
+      institution.featuredImageKey = newFeaturedImage.key;
+      
+      // Delete old featured image
+      if (oldFeaturedImageKey) {
+        await deleteSingleImageFromS3(oldFeaturedImageKey);
+      }
+    }
+
+    // ========================================
+    // UPDATE TEXT FIELDS
+    // ========================================
+    
+    const updateFields = [
+      'name', 'shortName', 'location', 'address', 'website', 'facebook',
+      'shortDescription', 'about', 'foundingStory', 'challenges',
+      'neieaImpact', 'additionalInfo', 'totalStudents', 'established'
+    ];
+
+    updateFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        institution[field] = req.body[field];
+      }
+    });
+
+    // Save changes
+    await institution.save();
+
+    res.status(200).json({
+      success: true,
+      data: institution,
+      message: 'Partner institution updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error updating partner institution:', error);
+    
+    // Cleanup new uploaded images on error
+    if (req.files) {
+      if (req.files.featuredImage) {
+        await deleteSingleImageFromS3(req.files.featuredImage[0].key);
+      }
+      if (req.files.detailImages) {
+        for (const img of req.files.detailImages) {
+          await deleteSingleImageFromS3(img.key);
+        }
+      }
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update partner institution'
+    });
+  }
+};
+
+// @desc    Delete partner institution
+// @route   DELETE /api/admin/partner-institution/:id
+// @access  Private/Admin
+export const deletePartnerInstitution = async (req, res) => {
+  try {
+    const institution = await PartnerInstitution.findById(req.params.id);
+    
+    if (!institution) {
+      return res.status(404).json({
+        success: false,
+        message: 'Partner institution not found'
+      });
+    }
+
+    // Delete featured image from S3
+    if (institution.featuredImageKey) {
+      await deleteSingleImageFromS3(institution.featuredImageKey);
+    }
+
+    // Delete detail images from S3
+    if (institution.detailImageKeys && institution.detailImageKeys.length > 0) {
+      for (const key of institution.detailImageKeys) {
+        await deleteSingleImageFromS3(key);
+      }
+    }
+
+    await institution.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'Partner institution deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting partner institution:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete partner institution'
+    });
+  }
+};
+
+// @desc    Reorder partner institutions
+// @route   PUT /api/admin/partner-institution/reorder
+// @access  Private/Admin
+export const reorderPartnerInstitutions = async (req, res) => {
+  try {
+    const { items } = req.body;
+    
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid reorder data'
+      });
+    }
+
+    // Update display_order for each institution
+    const updatePromises = items.map(item => 
+      PartnerInstitution.findByIdAndUpdate(
+        item.id,
+        { display_order: item.display_order },
+        { new: true }
+      )
+    );
+
+    await Promise.all(updatePromises);
+
+    res.status(200).json({
+      success: true,
+      message: 'Partner institutions reordered successfully'
+    });
+  } catch (error) {
+    console.error('Error reordering partner institutions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reorder partner institutions'
+    });
+  }
+};
+
