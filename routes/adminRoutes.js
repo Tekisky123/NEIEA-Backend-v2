@@ -71,7 +71,23 @@ import {
   reorderPartnerInstitutions,
   createPartnerInstitution,
   updatePartnerInstitution,
-  deletePartnerInstitution
+  deletePartnerInstitution,
+  getAllGlobalPartners,
+  getGlobalPartnerById,
+  createGlobalPartner,
+  updateGlobalPartner,
+  deleteGlobalPartner,
+  reorderGlobalPartners,
+  getCareerPageAdmin,
+  createCareerPage,
+  updateCareerPage,
+  updateCareerPageSection,
+  addCareerBenefit,
+  updateCareerBenefit,
+  deleteCareerBenefit,
+  addCareerJobCategory,
+  deleteCareerJobCategory,
+  deleteCareerPage
 } from '../controllers/adminController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import upload, { uploadCarouselImages, uploadGalleryImage, uploadLeadershipImage, uploadPartnerInstitutionImages, uploadSectionsImage, uploadTestimonialsImage, uploadVideoThumbnail } from '../middleware/upload.js';
@@ -176,5 +192,28 @@ adminRoutes.post('/partner-institution', protect, uploadPartnerInstitutionImages
 adminRoutes.put('/partner-institution/:id', protect, uploadPartnerInstitutionImages ,updatePartnerInstitution);
 adminRoutes.delete('/partner-institution/:id', protect, deletePartnerInstitution);
 
+// Global Partners Routes -----------------------------------------------------
+adminRoutes.get('/global-partners', protect, getAllGlobalPartners);
+adminRoutes.post('/global-partners', protect, uploadPartnerInstitutionImages, createGlobalPartner);
+adminRoutes.put('/global-partners/reorder', protect, reorderGlobalPartners);
+adminRoutes.get('/global-partners/:id', protect, getGlobalPartnerById);
+adminRoutes.put('/global-partners/:id', protect, uploadPartnerInstitutionImages, updateGlobalPartner);
+adminRoutes.delete('/global-partners/:id', protect, deleteGlobalPartner);
+
+// Career Page Routes -----------------------------------------------------
+adminRoutes.get('/career-page', protect, getCareerPageAdmin);
+adminRoutes.post('/career-page', protect, createCareerPage);
+adminRoutes.put('/career-page', protect, updateCareerPage);
+adminRoutes.put('/career-page/section/:section', protect, updateCareerPageSection);
+adminRoutes.delete('/career-page', protect, deleteCareerPage);
+
+// Career Page - Benefit management
+adminRoutes.post('/career-page/benefit', protect, addCareerBenefit);
+adminRoutes.put('/career-page/benefit/:benefitId', protect, updateCareerBenefit);
+adminRoutes.delete('/career-page/benefit/:benefitId', protect, deleteCareerBenefit);
+
+// Career Page - Job category management
+adminRoutes.post('/career-page/job-category', protect, addCareerJobCategory);
+adminRoutes.delete('/career-page/job-category/:category', protect, deleteCareerJobCategory);
 
 export default adminRoutes;

@@ -21,6 +21,8 @@ import { fileURLToPath } from 'url';
 import LeadershipRoutes from "./routes/LeadershipRoutes.js";
 import galleryRoutes from "./routes/galleryRoutes.js";
 import partnerInstitutionRoutes from "./routes/partnerInstitutionRoutes.js";
+import careerPageRoutes from "./routes/careerPageRoutes.js";
+import globalPartnersPageRoutes from "./routes/globalPartnersPageRoutes.js";
 
 // Get the directory name of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -54,6 +56,8 @@ app.use("/testimonials", testimonialsRoutes);
 app.use("/Leadership", LeadershipRoutes);
 app.use("/gallery", galleryRoutes);
 app.use("/partner-institution", partnerInstitutionRoutes);
+app.use("/career-page", careerPageRoutes);
+app.use("/global-partners-page", globalPartnersPageRoutes);
 
 app.use("/sections", sectionsRoutes);
 app.use("/volunteer", volunteerRoutes);

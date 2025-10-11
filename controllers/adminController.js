@@ -20,6 +20,8 @@ import ReferredBy from "../models/ReferredBy.js";
 import validator from 'validator';
 import GalleryItem from '../models/GalleryItem.js';
 import PartnerInstitution from '../models/PartnerInstitution.js';
+import CareerPage from '../models/CareerPage.js';
+import GlobalPartner from '../models/GlobalPartnersPage.js';
 
 function createS3KeyFromImageUrl(url) {
   const urlParts = url.split('/');
@@ -2464,6 +2466,911 @@ export const reorderPartnerInstitutions = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to reorder partner institutions'
+    });
+  }
+};
+
+// ============================================
+// CAREER PAGE ADMIN FUNCTIONS
+// ============================================
+
+// Get career page data (Admin)
+export const getCareerPageAdmin = async (req, res) => {
+  try {
+    const careerPage = await CareerPage.findOne({ is_active: true });
+    
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page data not found'
+      });
+    }
+    
+    // Sort benefits by display_order, fallback to creation order if all have same order
+    if (careerPage.whyWorkSection && careerPage.whyWorkSection.benefits) {
+      careerPage.whyWorkSection.benefits.sort((a, b) => {
+        const orderA = a.display_order || 0;
+        const orderB = b.display_order || 0;
+        
+        // If both have same order (like 0), sort by _id to maintain consistent order
+        if (orderA === orderB) {
+          return a._id.toString().localeCompare(b._id.toString());
+        }
+        
+        return orderA - orderB;
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error fetching career page:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch career page data',
+      error: error.message
+    });
+  }
+};
+
+// Create career page (Admin - first time setup)
+export const createCareerPage = async (req, res) => {
+  try {
+    const {
+      introduction,
+      whyWorkSection,
+      openingsSection,
+      closingSection
+    } = req.body;
+
+    // Validation
+    if (!introduction || !whyWorkSection || !openingsSection || !closingSection) {
+      return res.status(400).json({
+        success: false,
+        message: 'All sections are required'
+      });
+    }
+
+    // Validate email in openingsSection.contactInfo
+    if (openingsSection.contactInfo && openingsSection.contactInfo.email) {
+      if (!validator.isEmail(openingsSection.contactInfo.email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email address in contact information'
+        });
+      }
+    }
+
+    // Check if career page already exists
+    const existingPage = await CareerPage.findOne();
+    if (existingPage) {
+      return res.status(400).json({
+        success: false,
+        message: 'Career page already exists. Use update endpoint instead.'
+      });
+    }
+
+    // Create new career page
+    const newCareerPage = new CareerPage({
+      introduction,
+      whyWorkSection,
+      openingsSection,
+      closingSection
+    });
+
+    await newCareerPage.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Career page created successfully',
+      data: newCareerPage
+    });
+  } catch (error) {
+    console.error('Error creating career page:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create career page',
+      error: error.message
+    });
+  }
+};
+
+// Update career page (Admin)
+export const updateCareerPage = async (req, res) => {
+  try {
+    const {
+      introduction,
+      whyWorkSection,
+      openingsSection,
+      closingSection
+    } = req.body;
+
+    // Validate email if provided
+    if (openingsSection?.contactInfo?.email) {
+      if (!validator.isEmail(openingsSection.contactInfo.email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email address in contact information'
+        });
+      }
+    }
+
+    // Find and update the active career page
+    const careerPage = await CareerPage.findOneAndUpdate(
+      { is_active: true },
+      {
+        $set: {
+          introduction,
+          whyWorkSection,
+          openingsSection,
+          closingSection
+        }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page not found. Create one first.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Career page updated successfully',
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error updating career page:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update career page',
+      error: error.message
+    });
+  }
+};
+
+// Update specific section (Admin)
+export const updateCareerPageSection = async (req, res) => {
+  try {
+    const { section } = req.params;
+    const sectionData = req.body;
+
+    const validSections = ['introduction', 'whyWorkSection', 'openingsSection', 'closingSection'];
+    
+    if (!validSections.includes(section)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid section name'
+      });
+    }
+
+    // Validate email if updating openingsSection
+    if (section === 'openingsSection' && sectionData.contactInfo?.email) {
+      if (!validator.isEmail(sectionData.contactInfo.email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email address in contact information'
+        });
+      }
+    }
+
+    const updateObject = {};
+    updateObject[section] = sectionData;
+
+    const careerPage = await CareerPage.findOneAndUpdate(
+      { is_active: true },
+      { $set: updateObject },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${section} updated successfully`,
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error updating section:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update section',
+      error: error.message
+    });
+  }
+};
+
+// Add benefit to whyWorkSection (Admin)
+export const addCareerBenefit = async (req, res) => {
+  try {
+    const { icon, title, description } = req.body;
+
+    if (!icon || !title || !description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Icon, title, and description are required'
+      });
+    }
+
+    const careerPage = await CareerPage.findOneAndUpdate(
+      { is_active: true },
+      {
+        $push: {
+          'whyWorkSection.benefits': { icon, title, description }
+        }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Benefit added successfully',
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error adding benefit:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add benefit',
+      error: error.message
+    });
+  }
+};
+
+// Update benefit in whyWorkSection (Admin)
+export const updateCareerBenefit = async (req, res) => {
+  try {
+    const { benefitId } = req.params;
+    const { icon, title, description } = req.body;
+
+    if (!benefitId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Benefit ID is required'
+      });
+    }
+
+    const updateFields = {};
+    if (icon) updateFields['whyWorkSection.benefits.$.icon'] = icon;
+    if (title) updateFields['whyWorkSection.benefits.$.title'] = title;
+    if (description) updateFields['whyWorkSection.benefits.$.description'] = description;
+
+    const careerPage = await CareerPage.findOneAndUpdate(
+      { 
+        is_active: true,
+        'whyWorkSection.benefits._id': benefitId
+      },
+      {
+        $set: updateFields
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page or benefit not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Benefit updated successfully',
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error updating benefit:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update benefit',
+      error: error.message
+    });
+  }
+};
+
+// Delete benefit from whyWorkSection (Admin)
+export const deleteCareerBenefit = async (req, res) => {
+  try {
+    const { benefitId } = req.params;
+
+    if (!benefitId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Benefit ID is required'
+      });
+    }
+
+    const careerPage = await CareerPage.findOneAndUpdate(
+      { is_active: true },
+      {
+        $pull: {
+          'whyWorkSection.benefits': { _id: benefitId }
+        }
+      },
+      {
+        new: true
+      }
+    );
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Benefit deleted successfully',
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error deleting benefit:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete benefit',
+      error: error.message
+    });
+  }
+};
+
+// Add job category to openingsSection (Admin)
+export const addCareerJobCategory = async (req, res) => {
+  try {
+    const { category } = req.body;
+
+    if (!category || !category.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category is required'
+      });
+    }
+
+    const careerPage = await CareerPage.findOneAndUpdate(
+      { is_active: true },
+      {
+        $addToSet: {
+          'openingsSection.jobCategories': category.trim()
+        }
+      },
+      {
+        new: true
+      }
+    );
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Job category added successfully',
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error adding job category:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add job category',
+      error: error.message
+    });
+  }
+};
+
+// Delete job category from openingsSection (Admin)
+export const deleteCareerJobCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    if (!category) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category is required'
+      });
+    }
+
+    const careerPage = await CareerPage.findOneAndUpdate(
+      { is_active: true },
+      {
+        $pull: {
+          'openingsSection.jobCategories': category
+        }
+      },
+      {
+        new: true
+      }
+    );
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Job category deleted successfully',
+      data: careerPage
+    });
+  } catch (error) {
+    console.error('Error deleting job category:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete job category',
+      error: error.message
+    });
+  }
+};
+
+// Delete career page (Admin - use with caution)
+export const deleteCareerPage = async (req, res) => {
+  try {
+    const careerPage = await CareerPage.findOneAndDelete({ is_active: true });
+
+    if (!careerPage) {
+      return res.status(404).json({
+        success: false,
+        message: 'Career page not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Career page deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting career page:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete career page',
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// GLOBAL PARTNERS ADMIN FUNCTIONS
+// ============================================
+
+// @desc    Get all global partners (Admin)
+// @route   GET /api/admin/global-partners
+// @access  Private/Admin
+export const getAllGlobalPartners = async (req, res) => {
+  try {
+    const partners = await GlobalPartner.find()
+      .sort({ display_order: 1, createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      data: partners
+    });
+  } catch (error) {
+    console.error('Error fetching global partners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch global partners'
+    });
+  }
+};
+
+// @desc    Get single global partner by ID (Admin)
+// @route   GET /api/admin/global-partners/:id
+// @access  Private/Admin
+export const getGlobalPartnerById = async (req, res) => {
+  try {
+    const partner = await GlobalPartner.findById(req.params.id);
+    
+    if (!partner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Global partner not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: partner
+    });
+  } catch (error) {
+    console.error('Error fetching global partner:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch global partner'
+    });
+  }
+};
+
+// @desc    Create new global partner
+// @route   POST /api/admin/global-partners
+// @access  Private/Admin
+export const createGlobalPartner = async (req, res) => {
+  try {
+    const {
+      name,
+      shortName,
+      location,
+      website,
+      shortDescription,
+      about,
+      collaboration,
+      impact,
+      programs
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !shortName || !location || !shortDescription) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+    }
+
+    // Check for images
+    if (!req.files || !req.files.featuredImage || !req.files.detailImages) {
+      return res.status(400).json({
+        success: false,
+        message: 'Featured image and detail images are required'
+      });
+    }
+
+    const featuredImage = req.files.featuredImage[0];
+    const detailImages = req.files.detailImages;
+
+    // Parse programs if provided as JSON string
+    let parsedPrograms = [];
+    if (programs) {
+      try {
+        parsedPrograms = JSON.parse(programs);
+        if (!Array.isArray(parsedPrograms)) {
+          parsedPrograms = [programs];
+        }
+      } catch (e) {
+        parsedPrograms = [programs];
+      }
+    }
+
+    // Get the highest display_order
+    const lastPartner = await GlobalPartner.findOne()
+      .sort({ display_order: -1 });
+    const display_order = lastPartner ? lastPartner.display_order + 1 : 1;
+
+    // Create partner
+    const partner = await GlobalPartner.create({
+      name,
+      shortName,
+      location,
+      website,
+      featuredImage: featuredImage.location,
+      featuredImageKey: featuredImage.key,
+      detailImages: detailImages.map(img => img.location),
+      detailImageKeys: detailImages.map(img => img.key),
+      shortDescription,
+      about,
+      collaboration,
+      impact,
+      programs: parsedPrograms,
+      display_order
+    });
+
+    res.status(201).json({
+      success: true,
+      data: partner,
+      message: 'Global partner created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating global partner:', error);
+    
+    // Cleanup uploaded images on error
+    if (req.files) {
+      if (req.files.featuredImage) {
+        await deleteSingleImageFromS3(req.files.featuredImage[0].key);
+      }
+      if (req.files.detailImages) {
+        for (const img of req.files.detailImages) {
+          await deleteSingleImageFromS3(img.key);
+        }
+      }
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create global partner'
+    });
+  }
+};
+
+// @desc    Update global partner
+// @route   PUT /api/admin/global-partners/:id
+// @access  Private/Admin
+export const updateGlobalPartner = async (req, res) => {
+  try {
+    const partner = await GlobalPartner.findById(req.params.id);
+    
+    if (!partner) {
+      // Cleanup uploaded images if any
+      if (req.files) {
+        if (req.files.featuredImage) {
+          await deleteSingleImageFromS3(req.files.featuredImage[0].key);
+        }
+        if (req.files.detailImages) {
+          for (const img of req.files.detailImages) {
+            await deleteSingleImageFromS3(img.key);
+          }
+        }
+      }
+      
+      return res.status(404).json({
+        success: false,
+        message: 'Global partner not found'
+      });
+    }
+
+    // ========================================
+    // HANDLE DETAIL IMAGES UPDATE
+    // ========================================
+    
+    let finalDetailImages = [];
+    let finalDetailImageKeys = [];
+    
+    // Step 1: Parse existing images from request (images to keep)
+    let existingImagesToKeep = [];
+    let existingKeysToKeep = [];
+    
+    if (req.body.existingDetailImages) {
+      try {
+        const parsedExisting = JSON.parse(req.body.existingDetailImages);
+        existingImagesToKeep = Array.isArray(parsedExisting) ? parsedExisting : [];
+        
+        // Get corresponding keys for images we're keeping
+        existingKeysToKeep = existingImagesToKeep.map(url => {
+          const index = partner.detailImages.indexOf(url);
+          return index !== -1 ? partner.detailImageKeys[index] : null;
+        }).filter(key => key !== null);
+        
+      } catch (e) {
+        console.error('Error parsing existingDetailImages:', e);
+      }
+    }
+    
+    // Step 2: Parse images to remove
+    let imagesToRemove = [];
+    if (req.body.imagesToRemove) {
+      try {
+        const parsedRemove = JSON.parse(req.body.imagesToRemove);
+        imagesToRemove = Array.isArray(parsedRemove) ? parsedRemove : [];
+      } catch (e) {
+        console.error('Error parsing imagesToRemove:', e);
+      }
+    }
+    
+    // Step 3: Delete images from S3 that are marked for removal
+    if (imagesToRemove.length > 0) {
+      for (const imageInfo of imagesToRemove) {
+        if (imageInfo.key) {
+          await deleteSingleImageFromS3(imageInfo.key);
+          console.log('Deleted image from S3:', imageInfo.key);
+        }
+      }
+    }
+    
+    // Step 4: Add existing images that we're keeping
+    finalDetailImages = [...existingImagesToKeep];
+    finalDetailImageKeys = [...existingKeysToKeep];
+    
+    // Step 5: Add new uploaded images
+    if (req.files && req.files.detailImages && req.files.detailImages.length > 0) {
+      const newDetailImages = req.files.detailImages;
+      const newImageUrls = newDetailImages.map(img => img.location);
+      const newImageKeys = newDetailImages.map(img => img.key);
+      
+      finalDetailImages = [...finalDetailImages, ...newImageUrls];
+      finalDetailImageKeys = [...finalDetailImageKeys, ...newImageKeys];
+      
+      console.log('Added new images:', newImageUrls.length);
+    }
+    
+    // Step 6: Validate that at least one detail image exists
+    if (finalDetailImages.length === 0) {
+      // Cleanup new uploads if validation fails
+      if (req.files && req.files.detailImages) {
+        for (const img of req.files.detailImages) {
+          await deleteSingleImageFromS3(img.key);
+        }
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: 'At least one detail image is required'
+      });
+    }
+    
+    // Step 7: Update partner with final image arrays
+    partner.detailImages = finalDetailImages;
+    partner.detailImageKeys = finalDetailImageKeys;
+
+    // ========================================
+    // HANDLE FEATURED IMAGE UPDATE (if provided)
+    // ========================================
+    
+    if (req.files && req.files.featuredImage) {
+      const oldFeaturedImageKey = partner.featuredImageKey;
+      const newFeaturedImage = req.files.featuredImage[0];
+      
+      partner.featuredImage = newFeaturedImage.location;
+      partner.featuredImageKey = newFeaturedImage.key;
+      
+      // Delete old featured image
+      if (oldFeaturedImageKey) {
+        await deleteSingleImageFromS3(oldFeaturedImageKey);
+      }
+    }
+
+    // ========================================
+    // UPDATE TEXT FIELDS
+    // ========================================
+    
+    const updateFields = [
+      'name', 'shortName', 'location', 'website',
+      'shortDescription', 'about', 'collaboration', 'impact'
+    ];
+
+    updateFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        partner[field] = req.body[field];
+      }
+    });
+
+    // Handle programs separately (parse JSON)
+    if (req.body.programs !== undefined) {
+      try {
+        let parsedPrograms = JSON.parse(req.body.programs);
+        if (!Array.isArray(parsedPrograms)) {
+          parsedPrograms = [req.body.programs];
+        }
+        partner.programs = parsedPrograms;
+      } catch (e) {
+        partner.programs = [req.body.programs];
+      }
+    }
+
+    // Save changes
+    await partner.save();
+
+    res.status(200).json({
+      success: true,
+      data: partner,
+      message: 'Global partner updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error updating global partner:', error);
+    
+    // Cleanup new uploaded images on error
+    if (req.files) {
+      if (req.files.featuredImage) {
+        await deleteSingleImageFromS3(req.files.featuredImage[0].key);
+      }
+      if (req.files.detailImages) {
+        for (const img of req.files.detailImages) {
+          await deleteSingleImageFromS3(img.key);
+        }
+      }
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update global partner'
+    });
+  }
+};
+
+// @desc    Delete global partner
+// @route   DELETE /api/admin/global-partners/:id
+// @access  Private/Admin
+export const deleteGlobalPartner = async (req, res) => {
+  try {
+    const partner = await GlobalPartner.findById(req.params.id);
+    
+    if (!partner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Global partner not found'
+      });
+    }
+
+    // Delete featured image from S3
+    if (partner.featuredImageKey) {
+      await deleteSingleImageFromS3(partner.featuredImageKey);
+    }
+
+    // Delete detail images from S3
+    if (partner.detailImageKeys && partner.detailImageKeys.length > 0) {
+      for (const key of partner.detailImageKeys) {
+        await deleteSingleImageFromS3(key);
+      }
+    }
+
+    await partner.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'Global partner deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting global partner:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete global partner'
+    });
+  }
+};
+
+// @desc    Reorder global partners
+// @route   PUT /api/admin/global-partners/reorder
+// @access  Private/Admin
+export const reorderGlobalPartners = async (req, res) => {
+  try {
+    const { items } = req.body;
+    
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid reorder data'
+      });
+    }
+
+    // Update display_order for each partner
+    const updatePromises = items.map(item => 
+      GlobalPartner.findByIdAndUpdate(
+        item.id,
+        { display_order: item.display_order },
+        { new: true }
+      )
+    );
+
+    await Promise.all(updatePromises);
+
+    res.status(200).json({
+      success: true,
+      message: 'Global partners reordered successfully'
+    });
+  } catch (error) {
+    console.error('Error reordering global partners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reorder global partners'
     });
   }
 };
